@@ -1,0 +1,18 @@
+{
+  "name": "pattern-bot",
+  "version": "1.0",
+  "author": "@26BZ",
+  "license": "UNLICENSED",
+  "homepage": "https://26bz.online/",
+  "description": "A Discord bot that responds to text phrases using predefined patterns and responses.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "winston": "^3.17.0"
+  }
+}

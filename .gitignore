@@ -1,0 +1,6 @@
+logs/
+node_modules/
+.env
+package-lock.json
+questions/minecraft/bedrock.json
+questions/minecraft/java.json
