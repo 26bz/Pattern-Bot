@@ -26,9 +26,9 @@ Patterns and responses are defined in JSON files inside `questions`.
 - Each file can have multiple entries:
   ```json
   {
-    "some-key": {
-      "pattern": "(?i)how do i join.*server",
-      "response": "To join the server, use the IP: ..."
+    "general question": {
+      "pattern": "(i have a question|i need help|can you help me|i have a query)",
+      "response": "Maybe I can help! What do you need assistance with?"
     }
   }
   ```
@@ -37,7 +37,7 @@ Patterns and responses are defined in JSON files inside `questions`.
 
 **To add new patterns:**
 
-1. Create or edit a `.json` file in `questions/minecraft/`
+1. Create or edit a `.json` file in `questions`
 2. Add your pattern/response pairs
 3. Restart the bot to reload patterns
 
