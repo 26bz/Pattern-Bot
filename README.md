@@ -13,7 +13,7 @@ A Discord bot using discord.js v14+ that listens for questions or phrases and re
      ```env
      DISCORD_TOKEN=your-bot-token-here
      ```
-     Optionally add `DEBUG=true` for verbose debug logging.
+     Optionally add `DEBUG=true` for verbose debug logging or `BLACKELISTED_CHANNELS=channelID1,channelID2` to ignore specific channels.
 3. **Run the bot:**
    ```bash
    npm start
