@@ -2,6 +2,8 @@
 
 A Discord bot using discord.js v14+ that listens for questions or phrases and responds with related replies. It features pattern matching, statistics tracking, logging, and some admin commands.
 
+![Pattern Bot Screenshot](/.images/patternbot.png)
+
 ## Setup
 
 1. **Install dependencies:**
