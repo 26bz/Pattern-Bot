@@ -1,7 +1,7 @@
-import fs from "fs";
-import path from "path";
-import { logger } from "../logger.js";
-import { questionsCache } from "../index.js";
+import fs from 'fs';
+import path from 'path';
+import { logger } from '../logger.js';
+import { questionsCache } from '../index.js';
 
 export function loadQuestions(dir) {
   try {
@@ -15,56 +15,48 @@ export function loadQuestions(dir) {
     let invalidPatterns = 0;
 
     files.forEach((file) => {
-      if (file.endsWith(".json") && !file.startsWith("!")) {
+      if (file.endsWith('.json') && !file.startsWith('!')) {
         const filePath = path.join(dir, file);
         try {
-          const fileContent = fs.readFileSync(filePath, "utf-8");
+          const fileContent = fs.readFileSync(filePath, 'utf-8');
           const fileQuestions = JSON.parse(fileContent);
 
           for (const key in fileQuestions) {
             try {
               const { pattern, response } = fileQuestions[key];
 
-              if (!pattern || typeof pattern !== "string") {
+              if (!pattern || typeof pattern !== 'string') {
                 logger.warn(`Invalid pattern in ${file} for key ${key}`);
                 invalidPatterns++;
                 continue;
               }
 
-              if (!response || typeof response !== "string") {
+              if (!response || typeof response !== 'string') {
                 logger.warn(`Invalid response in ${file} for key ${key}`);
                 invalidPatterns++;
                 continue;
               }
 
               try {
-                new RegExp(pattern, "i");
+                new RegExp(pattern, 'i');
                 questionsCache.set(pattern, response);
                 loadedPatterns++;
               } catch (regexError) {
-                logger.warn(
-                  `Invalid regex pattern in ${file} for key ${key}: ${regexError.message}`
-                );
+                logger.warn(`Invalid regex pattern in ${file} for key ${key}: ${regexError.message}`);
                 invalidPatterns++;
               }
             } catch (keyError) {
-              logger.warn(
-                `Error processing key ${key} in ${file}: ${keyError.message}`
-              );
+              logger.warn(`Error processing key ${key} in ${file}: ${keyError.message}`);
               invalidPatterns++;
             }
           }
         } catch (fileError) {
-          logger.error(
-            `Error reading or parsing ${filePath}: ${fileError.message}`
-          );
+          logger.error(`Error reading or parsing ${filePath}: ${fileError.message}`);
         }
       }
     });
 
-    logger.info(
-      `Loaded ${loadedPatterns} question patterns (${invalidPatterns} invalid patterns skipped)`
-    );
+    logger.info(`Loaded ${loadedPatterns} question patterns (${invalidPatterns} invalid patterns skipped)`);
   } catch (error) {
     logger.error(`Error loading questions: ${error.message}`);
   }

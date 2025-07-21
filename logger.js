@@ -1,13 +1,13 @@
-import winston from "winston";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
+import winston from 'winston';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const logDir = path.join(__dirname, "logs");
+const logDir = path.join(__dirname, 'logs');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
@@ -21,57 +21,51 @@ const logLevels = {
     debug: 4,
   },
   colors: {
-    error: "red",
-    warn: "yellow",
-    info: "green",
-    pattern: "cyan",
-    debug: "blue",
+    error: 'red',
+    warn: 'yellow',
+    info: 'green',
+    pattern: 'cyan',
+    debug: 'blue',
   },
 };
 
 winston.addColors(logLevels.colors);
 
 const consoleFormat = winston.format.combine(
-  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.colorize({ all: true }),
   winston.format.printf(({ timestamp, level, message }) => {
     return `[${timestamp}] ${level}: ${message}`;
   })
 );
 
-const fileFormat = winston.format.combine(
-  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-  winston.format.json()
-);
+const fileFormat = winston.format.combine(winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), winston.format.json());
 
 const logger = winston.createLogger({
   levels: logLevels.levels,
   format: fileFormat,
-  defaultMeta: { service: "discord-bot" },
+  defaultMeta: { service: 'discord-bot' },
   transports: [
     new winston.transports.Console({
       format: consoleFormat,
-      level: "pattern",
+      level: 'pattern',
     }),
     new winston.transports.File({
-      filename: path.join(logDir, "error.log"),
-      level: "error",
+      filename: path.join(logDir, 'error.log'),
+      level: 'error',
     }),
   ],
 });
 
 const patternTransport = new winston.transports.File({
-  filename: path.join(logDir, "pattern_matches.log"),
-  level: "pattern",
+  filename: path.join(logDir, 'pattern_matches.log'),
+  level: 'pattern',
+  format: winston.format.combine(winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), winston.format.json()),
   format: winston.format.combine(
-    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-    winston.format.json()
-  ),
-  format: winston.format.combine(
-    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.json(),
     winston.format.printf((info) => {
-      if (info.level === "pattern") {
+      if (info.level === 'pattern') {
         return JSON.stringify(info);
       }
       return null; // Don't log other levels in this transport
@@ -80,13 +74,13 @@ const patternTransport = new winston.transports.File({
 });
 
 const activityTransport = new winston.transports.File({
-  filename: path.join(logDir, "bot_activity.log"),
-  level: "info",
+  filename: path.join(logDir, 'bot_activity.log'),
+  level: 'info',
   format: winston.format.combine(
-    winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.json(),
     winston.format.printf((info) => {
-      if (info.level !== "pattern" && info.level !== "debug") {
+      if (info.level !== 'pattern' && info.level !== 'debug') {
         return JSON.stringify(info);
       }
       return null;
@@ -99,7 +93,7 @@ logger.add(activityTransport);
 
 class PatternStats {
   constructor() {
-    this.statsFile = path.join(logDir, "pattern_stats.json");
+    this.statsFile = path.join(logDir, 'pattern_stats.json');
     this.patternStats = {};
     this.loadStats();
   }
@@ -107,11 +101,9 @@ class PatternStats {
   loadStats() {
     try {
       if (fs.existsSync(this.statsFile)) {
-        const data = fs.readFileSync(this.statsFile, "utf8");
+        const data = fs.readFileSync(this.statsFile, 'utf8');
         this.patternStats = JSON.parse(data);
-        logger.info(
-          `Loaded ${Object.keys(this.patternStats).length} pattern statistics`
-        );
+        logger.info(`Loaded ${Object.keys(this.patternStats).length} pattern statistics`);
       } else {
         this.saveStats();
       }
@@ -123,10 +115,7 @@ class PatternStats {
 
   saveStats() {
     try {
-      fs.writeFileSync(
-        this.statsFile,
-        JSON.stringify(this.patternStats, null, 2)
-      );
+      fs.writeFileSync(this.statsFile, JSON.stringify(this.patternStats, null, 2));
     } catch (error) {
       logger.error(`Error saving pattern stats: ${error.message}`);
     }
@@ -138,8 +127,8 @@ class PatternStats {
     const channelId = message.channel.id;
     const channelName = message.channel.name;
     const content = message.content;
-    const guildId = message.guild ? message.guild.id : "DM";
-    const guildName = message.guild ? message.guild.name : "Direct Message";
+    const guildId = message.guild ? message.guild.id : 'DM';
+    const guildName = message.guild ? message.guild.name : 'Direct Message';
 
     if (!this.patternStats[pattern]) {
       this.patternStats[pattern] = {
@@ -176,21 +165,16 @@ class PatternStats {
       this.patternStats[pattern].examples.push(content);
     }
 
-    logger.log(
-      "pattern",
-      `Pattern matched: "${pattern}" | User: ${username} | Channel: ${channelName} | Guild: ${guildName} | Confidence: ${confidence.toFixed(2)} | Message: "${content}"`
-    );
+    logger.log('pattern', `Pattern matched: "${pattern}" | User: ${username} | Channel: ${channelName} | Guild: ${guildName} | Confidence: ${confidence.toFixed(2)} | Message: "${content}"`);
 
     this.saveStats();
   }
 
   generateReport() {
-    const sortedPatterns = Object.entries(this.patternStats).sort(
-      (a, b) => b[1].count - a[1].count
-    );
+    const sortedPatterns = Object.entries(this.patternStats).sort((a, b) => b[1].count - a[1].count);
 
-    let report = "Pattern Match Statistics Report\n";
-    report += "================================\n\n";
+    let report = 'Pattern Match Statistics Report\n';
+    report += '================================\n\n';
     report += `Generated: ${new Date().toISOString()}\n\n`;
     report += `Total Patterns: ${sortedPatterns.length}\n\n`;
 
@@ -247,10 +231,7 @@ class PatternStats {
   }
 
   exportStats() {
-    const exportFile = path.join(
-      logDir,
-      `pattern_stats_export_${Date.now()}.json`
-    );
+    const exportFile = path.join(logDir, `pattern_stats_export_${Date.now()}.json`);
 
     try {
       fs.writeFileSync(exportFile, JSON.stringify(this.patternStats, null, 2));

@@ -1,18 +1,21 @@
 {
-  "name": "pattern-bot",
-  "version": "1.0",
-  "author": "@26BZ",
-  "license": "MIT",
-  "homepage": "https://26bz.online/",
-  "description": "A Discord bot that responds to text phrases using predefined patterns and responses.",
-  "main": "index.js",
-  "type": "module",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "discord.js": "^14.19.3",
-    "dotenv": "^17.2.0",
-    "winston": "^3.17.0"
-  }
+    "name": "pattern-bot",
+    "version": "1.0",
+    "author": {
+        "name": "26BZ",
+        "email": "contact@26bz.online",
+        "url": "https://26bz.online/"
+    },
+    "license": "MIT",
+    "description": "A Discord bot that responds to text phrases using predefined patterns and responses.",
+    "main": "index.js",
+    "type": "module",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "discord.js": "^14.19.3",
+        "dotenv": "^17.2.0",
+        "winston": "^3.17.0"
+    }
 }
