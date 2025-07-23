@@ -60,7 +60,6 @@ const logger = winston.createLogger({
 const patternTransport = new winston.transports.File({
   filename: path.join(logDir, 'pattern_matches.log'),
   level: 'pattern',
-  format: winston.format.combine(winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), winston.format.json()),
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.json(),
@@ -252,6 +251,10 @@ class PatternStats {
         count: data.count,
         lastMatched: data.lastMatched,
       }));
+  }
+
+  getTotalPatterns() {
+    return Object.keys(this.patternStats).length;
   }
 }
 

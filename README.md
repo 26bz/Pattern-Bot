@@ -10,16 +10,72 @@ A Discord bot using discord.js v14+ that listens for questions or phrases and re
    ```bash
    npm install
    ```
-2. **Configure your bot token:**
-   - Create a `.env` file with:
+2. **Configure your bot:**
+   - Copy `.env.example` to `.env` and configure:
      ```env
      DISCORD_TOKEN=your-bot-token-here
+     DEBUG=false
+     BLACKLISTED_CHANNELS=123456789012345678,987654321098765432
+     CONFIDENCE_THRESHOLD_MENTION=0.6
+     CONFIDENCE_THRESHOLD_QUESTION=0.6
+     CONFIDENCE_THRESHOLD_DEFAULT=0.85
      ```
-     Optionally add `DEBUG=true` for verbose debug logging or `BLACKELISTED_CHANNELS=channelID1,channelID2` to ignore specific channels.
 3. **Run the bot:**
    ```bash
    npm start
    ```
+
+## Configuration Options
+
+### Environment Variables
+
+- **`DISCORD_TOKEN`** (Required) - Your Discord bot token
+- **`DEBUG`** - Enable debug logging (`true` or `false`)
+- **`BLACKLISTED_CHANNELS`** - Comma-separated channel IDs to ignore
+
+### Confidence Thresholds
+
+These control how sensitive the pattern matching is (0.0 = very loose, 1.0 = exact match):
+
+**How Confidence is Calculated:**
+Confidence = (Pattern match length) / (Total message length)
+
+#### Examples with pattern `"how are you"`:
+
+| Message                     | Type     | Confidence   | Threshold | Result          |
+| --------------------------- | -------- | ------------ | --------- | --------------- |
+| `"@bot how are you doing?"` | Mention  | 0.61 (11/18) | 0.6       | ✅ **Responds** |
+| `"How are you?"`            | Question | 0.85 (11/13) | 0.6       | ✅ **Responds** |
+| `"hey how are you today"`   | Regular  | 0.50 (11/22) | 0.85      | ❌ Too low      |
+| `"how are you"`             | Regular  | 1.0 (11/11)  | 0.85      | ✅ **Responds** |
+| `"how are you doing well?"` | Regular  | 0.52 (11/21) | 0.85      | ❌ Too low      |
+
+#### Configuration Options:
+
+- **`CONFIDENCE_THRESHOLD_MENTION=0.6`** - When the bot is @mentioned
+
+  - More lenient since user is directly addressing the bot
+  - Allows partial matches in longer messages
+
+- **`CONFIDENCE_THRESHOLD_QUESTION=0.6`** - For question-like messages
+
+  - Applies to messages with "?" or starting with question words (what, how, etc.)
+  - Questions indicate intentional information seeking
+
+- **`CONFIDENCE_THRESHOLD_DEFAULT=0.85`** - For regular messages
+  - Strict threshold prevents interrupting casual conversation
+  - Only responds to very close pattern matches
+
+#### Tuning Guidelines:
+
+- **Lower values (0.3-0.6)**: More responsive, may interrupt conversations
+- **Medium values (0.6-0.8)**: Balanced, good for mentions/questions
+- **Higher values (0.8-1.0)**: Very selective, only near-perfect matches
+
+**Recommended Values:**
+
+- Mentions/Questions: `0.6` (responsive when directly asked)
+- Default: `0.85` (avoids interrupting normal chat)
 
 ## Adding & Customizing Patterns
 
@@ -45,10 +101,14 @@ Patterns and responses are defined in JSON files inside `questions`.
 
 ## How Pattern Matching Works
 
-- Only messages that look like questions or mention the bot are checked
-- Each pattern is checked using regex; matches are scored by length/confidence
-- A confidence threshold (0.6 for questions/mentions, 0.85 otherwise) avoids accidental matches
-- The first high-confidence match triggers a response
+- Messages are filtered by length (minimum 3 characters) and blacklisted channels
+- Bot mentions and question-like messages get priority with lower confidence thresholds
+- Each pattern is tested using regex; matches are scored by length/confidence ratio
+- Configurable confidence thresholds prevent accidental responses:
+  - **Mentions**: Uses `CONFIDENCE_THRESHOLD_MENTION` (default: 0.6)
+  - **Questions**: Uses `CONFIDENCE_THRESHOLD_QUESTION` (default: 0.6)
+  - **Regular messages**: Uses `CONFIDENCE_THRESHOLD_DEFAULT` (default: 0.85)
+- The first high-confidence match triggers a response and stops further checking
 
 ## Statistics & Logging
 
