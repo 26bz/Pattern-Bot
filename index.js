@@ -87,7 +87,7 @@ function loadQuestions(dir) {
 
 loadQuestions(path.join(__dirname, 'questions'));
 
-client.once('ready', () => {
+client.once('clientReady', () => {
   logger.info(`Logged in as ${client.user.tag}`);
   logger.info('Bot is ready to respond to questions!');
 });
