@@ -102,10 +102,8 @@ client.on('messageCreate', (message) => {
       .trim()
       .toLowerCase();
 
-    // Skip blacklisted
     if (config.blacklistedChannels.includes(message.channel.id)) return;
 
-    // Check for admin commands (server owner only)
     if (message.guild && message.author.id === message.guild.ownerId) {
       if (content === '!pattern-report') {
         logger.info(`Server owner ${message.author.username} requested a pattern report`);
@@ -124,7 +122,6 @@ client.on('messageCreate', (message) => {
         return;
       }
 
-      // Command to export raw stats data
       if (content === '!export-stats') {
         logger.info(`Server owner ${message.author.username} requested stats export`);
         const exportFile = patternStats.exportStats();
@@ -142,7 +139,6 @@ client.on('messageCreate', (message) => {
         return;
       }
 
-      // Command to show top patterns directly in Discord
       if (content === '!top-patterns') {
         logger.info(`Server owner ${message.author.username} requested top patterns`);
         const topPatterns = patternStats.getTopPatterns(10);
@@ -173,7 +169,6 @@ client.on('messageCreate', (message) => {
     const isBotMention = message.mentions.users.has(client.user.id);
     const isQuestion = content.includes('?') || /^(what|who|when|where|why|how|can|could|would|is|are|am|do|does|did|will|should).+/.test(content);
 
-    // If it's a direct mention or a question, process with higher confidence
     const confidenceThreshold = isBotMention ? config.confidenceThreshold.mention : isQuestion ? config.confidenceThreshold.question : config.confidenceThreshold.default;
 
     if (config.debug) {
@@ -189,7 +184,6 @@ client.on('messageCreate', (message) => {
         const match = messageContent.match(regex);
 
         if (match) {
-          // Calculate confidence based on match length vs content length
           const matchLength = match[0].length;
           const confidence = matchLength / messageContent.length;
 

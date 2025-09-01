@@ -70,7 +70,7 @@ const logger = winston.createLogger({
       level: 'error',
       maxSize: '20m',
       maxFiles: '14d',
-      zippedArchive: true
+      zippedArchive: true,
     }),
   ],
   exceptionHandlers: [
@@ -79,8 +79,8 @@ const logger = winston.createLogger({
       datePattern: 'YYYY-MM-DD',
       maxSize: '20m',
       maxFiles: '14d',
-      zippedArchive: true
-    })
+      zippedArchive: true,
+    }),
   ],
   rejectionHandlers: [
     new DailyRotateFile({
@@ -88,9 +88,9 @@ const logger = winston.createLogger({
       datePattern: 'YYYY-MM-DD',
       maxSize: '20m',
       maxFiles: '14d',
-      zippedArchive: true
-    })
-  ]
+      zippedArchive: true,
+    }),
+  ],
 });
 
 const patternFilter = winston.format((info) => {
@@ -114,7 +114,7 @@ const patternTransport = new DailyRotateFile({
 });
 
 const activityFilter = winston.format((info) => {
-  return (info.level !== 'pattern' && info.level !== 'debug') ? info : false;
+  return info.level !== 'pattern' && info.level !== 'debug' ? info : false;
 });
 
 const activityTransport = new DailyRotateFile({
