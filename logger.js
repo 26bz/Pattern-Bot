@@ -58,10 +58,11 @@ const logger = winston.createLogger({
   format: fileFormat,
   defaultMeta: { service: 'discord-bot' },
   exitOnError: false,
+  level: process.env.LOG_LEVEL || 'info',
   transports: [
     new winston.transports.Console({
       format: consoleFormat,
-      level: 'pattern',
+      level: process.env.CONSOLE_LOG_LEVEL || 'pattern',
     }),
     new DailyRotateFile({
       filename: path.join(logDir, 'error-%DATE%.log'),
