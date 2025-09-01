@@ -1,4 +1,5 @@
 import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -45,21 +46,48 @@ const logger = winston.createLogger({
   levels: logLevels.levels,
   format: fileFormat,
   defaultMeta: { service: 'discord-bot' },
+  exitOnError: false,
   transports: [
     new winston.transports.Console({
       format: consoleFormat,
       level: 'pattern',
     }),
-    new winston.transports.File({
-      filename: path.join(logDir, 'error.log'),
+    new DailyRotateFile({
+      filename: path.join(logDir, 'error-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
       level: 'error',
+      maxSize: '20m',
+      maxFiles: '14d',
+      zippedArchive: true
     }),
   ],
+  exceptionHandlers: [
+    new DailyRotateFile({
+      filename: path.join(logDir, 'exceptions-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '20m',
+      maxFiles: '14d',
+      zippedArchive: true
+    })
+  ],
+  rejectionHandlers: [
+    new DailyRotateFile({
+      filename: path.join(logDir, 'rejections-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '20m',
+      maxFiles: '14d',
+      zippedArchive: true
+    })
+  ]
 });
 
-const patternTransport = new winston.transports.File({
-  filename: path.join(logDir, 'pattern_matches.log'),
+const patternTransport = new DailyRotateFile({
+  filename: path.join(logDir, 'pattern_matches-%DATE%.log'),
+  datePattern: 'YYYY-MM-DD',
   level: 'pattern',
+  maxSize: '20m',
+  maxFiles: '30d',
+  zippedArchive: true,
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.json(),
@@ -72,9 +100,13 @@ const patternTransport = new winston.transports.File({
   ),
 });
 
-const activityTransport = new winston.transports.File({
-  filename: path.join(logDir, 'bot_activity.log'),
+const activityTransport = new DailyRotateFile({
+  filename: path.join(logDir, 'bot_activity-%DATE%.log'),
+  datePattern: 'YYYY-MM-DD',
   level: 'info',
+  maxSize: '20m',
+  maxFiles: '30d',
+  zippedArchive: true,
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.json(),
