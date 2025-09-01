@@ -34,13 +34,24 @@ winston.addColors(logLevels.colors);
 
 const consoleFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  winston.format.errors({ stack: true }),
   winston.format.colorize({ all: true }),
-  winston.format.printf(({ timestamp, level, message }) => {
-    return `[${timestamp}] ${level}: ${message}`;
+  winston.format.printf(({ timestamp, level, message, stack, ...meta }) => {
+    let output = `[${timestamp}] ${level}: ${message}`;
+    if (stack) output += `\n${stack}`;
+    if (Object.keys(meta).length > 0) {
+      output += ` ${JSON.stringify(meta)}`;
+    }
+    return output;
   })
 );
 
-const fileFormat = winston.format.combine(winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), winston.format.json());
+const fileFormat = winston.format.combine(
+  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  winston.format.errors({ stack: true }),
+  winston.format.metadata({ fillExcept: ['message', 'level', 'timestamp'] }),
+  winston.format.json()
+);
 
 const logger = winston.createLogger({
   levels: logLevels.levels,
@@ -81,6 +92,10 @@ const logger = winston.createLogger({
   ]
 });
 
+const patternFilter = winston.format((info) => {
+  return info.level === 'pattern' ? info : false;
+});
+
 const patternTransport = new DailyRotateFile({
   filename: path.join(logDir, 'pattern_matches-%DATE%.log'),
   datePattern: 'YYYY-MM-DD',
@@ -89,15 +104,16 @@ const patternTransport = new DailyRotateFile({
   maxFiles: '30d',
   zippedArchive: true,
   format: winston.format.combine(
+    patternFilter(),
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    winston.format.json(),
-    winston.format.printf((info) => {
-      if (info.level === 'pattern') {
-        return JSON.stringify(info);
-      }
-      return null; // Don't log other levels in this transport
-    })
+    winston.format.errors({ stack: true }),
+    winston.format.metadata({ fillExcept: ['message', 'level', 'timestamp'] }),
+    winston.format.json()
   ),
+});
+
+const activityFilter = winston.format((info) => {
+  return (info.level !== 'pattern' && info.level !== 'debug') ? info : false;
 });
 
 const activityTransport = new DailyRotateFile({
@@ -108,19 +124,36 @@ const activityTransport = new DailyRotateFile({
   maxFiles: '30d',
   zippedArchive: true,
   format: winston.format.combine(
+    activityFilter(),
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    winston.format.json(),
-    winston.format.printf((info) => {
-      if (info.level !== 'pattern' && info.level !== 'debug') {
-        return JSON.stringify(info);
-      }
-      return null;
-    })
+    winston.format.errors({ stack: true }),
+    winston.format.metadata({ fillExcept: ['message', 'level', 'timestamp'] }),
+    winston.format.json()
   ),
+});
+
+patternTransport.on('rotate', (oldFilename, newFilename) => {
+  logger.info(`Pattern log rotated from ${oldFilename} to ${newFilename}`);
+});
+
+activityTransport.on('rotate', (oldFilename, newFilename) => {
+  logger.info(`Activity log rotated from ${oldFilename} to ${newFilename}`);
+});
+
+patternTransport.on('error', (err) => {
+  console.error('Pattern transport error:', err);
+});
+
+activityTransport.on('error', (err) => {
+  console.error('Activity transport error:', err);
 });
 
 logger.add(patternTransport);
 logger.add(activityTransport);
+
+logger.on('error', (err) => {
+  console.error('Logger error:', err);
+});
 
 class PatternStats {
   constructor() {
@@ -174,7 +207,6 @@ class PatternStats {
     this.patternStats[pattern].count++;
     this.patternStats[pattern].lastMatched = new Date().toISOString();
 
-    // Track channel statistics
     if (!this.patternStats[pattern].channels[channelId]) {
       this.patternStats[pattern].channels[channelId] = {
         name: channelName,
@@ -183,7 +215,6 @@ class PatternStats {
     }
     this.patternStats[pattern].channels[channelId].count++;
 
-    // Track user statistics
     if (!this.patternStats[pattern].users[userId]) {
       this.patternStats[pattern].users[userId] = {
         name: username,
@@ -222,7 +253,6 @@ class PatternStats {
         report += `   - No examples stored\n`;
       }
 
-      // Top channels for this pattern
       const topChannels = Object.entries(data.channels || {})
         .sort((a, b) => b[1].count - a[1].count)
         .slice(0, 3);
@@ -234,7 +264,6 @@ class PatternStats {
         });
       }
 
-      // Top users for this pattern
       const topUsers = Object.entries(data.users || {})
         .sort((a, b) => b[1].count - a[1].count)
         .slice(0, 3);
