@@ -1,6 +1,7 @@
 {
     "conventionalCommits.scopes": [
       "core",
-      "deps"
+      "deps",
+      "logger"
     ]
 }

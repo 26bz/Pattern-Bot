@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import path from 'path';
 import fs from 'fs';
-import { logger, patternStats } from './logger.js';
+import { logger, patternStats, PerformanceLogger } from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -85,15 +85,25 @@ function loadQuestions(dir) {
   }
 }
 
+const botStartTime = Date.now();
 loadQuestions(path.join(__dirname, 'questions'));
 
 client.once('clientReady', () => {
-  logger.info(`Logged in as ${client.user.tag}`);
-  logger.info('Bot is ready to respond to questions!');
+  logger.info('Bot successfully logged in', {
+    botTag: client.user.tag,
+    botId: client.user.id,
+    guildCount: client.guilds.cache.size,
+    userCount: client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0),
+    patternsLoaded: questionsCache.size,
+  });
+
+  PerformanceLogger.logBotStartup(botStartTime);
 });
 
 client.on('messageCreate', (message) => {
   if (message.author.bot) return;
+
+  const startTime = Date.now();
 
   try {
     const content = message.content.toLowerCase();
@@ -106,7 +116,6 @@ client.on('messageCreate', (message) => {
 
     if (message.guild && message.author.id === message.guild.ownerId) {
       if (content === '!pattern-report') {
-        logger.info(`Server owner ${message.author.username} requested a pattern report`);
         const reportFile = patternStats.generateReport();
         if (reportFile) {
           const embed = new EmbedBuilder()
@@ -116,14 +125,15 @@ client.on('messageCreate', (message) => {
             .setFooter({ text: 'Use !export-stats to export raw data' });
 
           message.reply({ embeds: [embed] });
+          logger.info(`📊 Report generated: ${reportFile}`);
         } else {
           message.reply('Failed to generate pattern report. Check console for errors.');
+          logger.error('Failed to generate pattern report');
         }
         return;
       }
 
       if (content === '!export-stats') {
-        logger.info(`Server owner ${message.author.username} requested stats export`);
         const exportFile = patternStats.exportStats();
         if (exportFile) {
           const embed = new EmbedBuilder()
@@ -133,14 +143,15 @@ client.on('messageCreate', (message) => {
             .setFooter({ text: 'Use !pattern-report for a formatted report' });
 
           message.reply({ embeds: [embed] });
+          logger.info(`📤 Stats exported: ${exportFile}`);
         } else {
           message.reply('Failed to export pattern statistics. Check console for errors.');
+          logger.error('Failed to export pattern statistics');
         }
         return;
       }
 
       if (content === '!top-patterns') {
-        logger.info(`Server owner ${message.author.username} requested top patterns`);
         const topPatterns = patternStats.getTopPatterns(10);
 
         if (topPatterns.length === 0) {
@@ -157,6 +168,7 @@ client.on('messageCreate', (message) => {
         const embed = new EmbedBuilder().setTitle('Pattern Match Statistics').setDescription(description).setColor('#00FF00').setFooter({ text: 'Use !pattern-report for a full report' });
 
         message.reply({ embeds: [embed] });
+        logger.info(`📈 Showed top ${topPatterns.length} patterns`);
         return;
       }
     }
@@ -192,9 +204,21 @@ client.on('messageCreate', (message) => {
           }
 
           if (confidence >= confidenceThreshold) {
+            const processingTime = Date.now() - startTime;
             message.reply(response);
-            logger.info(`Matched pattern: ${pattern} with confidence: ${confidence.toFixed(2)}`);
-            patternStats.trackPatternMatch(message, pattern, confidence);
+
+            logger.info('Pattern matched and response sent', {
+              pattern,
+              user: `${message.author.username} (${message.author.id})`,
+              channel: `${message.channel.name || 'DM'} (${message.channel.id})`,
+              guild: message.guild ? `${message.guild.name} (${message.guild.id})` : 'Direct Message',
+              confidence: confidence.toFixed(3),
+              duration: processingTime,
+              messageLength: message.content.length,
+              responseLength: response.length,
+            });
+
+            patternStats.trackPatternMatch(message, pattern, confidence, processingTime, response);
             matchFound = true;
             break;
           }
@@ -205,33 +229,63 @@ client.on('messageCreate', (message) => {
     }
 
     if (!matchFound && config.debug) {
-      logger.debug(`No high-confidence match found for: "${content}"`);
+      const processingTime = Date.now() - startTime;
+      logger.debug('No pattern match found', {
+        user: `${message.author.username} (${message.author.id})`,
+        channel: `${message.channel.name || 'DM'} (${message.channel.id})`,
+        guild: message.guild ? `${message.guild.name} (${message.guild.id})` : 'Direct Message',
+        messageContent: content.substring(0, 50) + (content.length > 50 ? '...' : ''),
+        messageLength: content.length,
+        duration: processingTime,
+        patternsChecked: questionsCache.size,
+        confidenceThreshold,
+      });
     }
   } catch (error) {
-    logger.error(`Error processing message: ${error.message}`);
+    const processingTime = Date.now() - startTime;
+    logger.error('Error processing message', {
+      error: error.message,
+      stack: error.stack,
+      user: `${message.author.username} (${message.author.id})`,
+      channel: `${message.channel.name || 'DM'} (${message.channel.id})`,
+      guild: message.guild ? `${message.guild.name} (${message.guild.id})` : 'Direct Message',
+      messageContent: message.content.substring(0, 100) + (message.content.length > 100 ? '...' : ''),
+      duration: processingTime,
+    });
   }
 });
 
 client.on('error', (error) => {
-  logger.error('Discord client error:', error);
+  logger.error('Discord client error', {
+    error: error.message,
+    stack: error.stack,
+    code: error.code || 'UNKNOWN',
+  });
 });
 
 client.on('warn', (warning) => {
-  logger.warn('Discord client warning:', warning);
+  logger.warn('Discord client warning', {
+    warning: warning.toString(),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 process.on('unhandledRejection', (error) => {
-  logger.error('Unhandled promise rejection:', error);
+  logger.error('Unhandled promise rejection', {
+    error: error.message || error,
+    stack: error.stack,
+    name: error.name || 'UnhandledRejection',
+  });
 });
 
 process.on('SIGINT', () => {
-  logger.info('Bot is shutting down...');
+  logger.info(`👋 Shutting down... (uptime: ${Math.round(process.uptime())}s)`);
   client.destroy();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  logger.info('Bot is shutting down...');
+  logger.info(`👋 Shutting down... (uptime: ${Math.round(process.uptime())}s)`);
   client.destroy();
   process.exit(0);
 });

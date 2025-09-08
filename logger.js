@@ -1,3 +1,4 @@
+import { createConsola } from 'consola';
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import fs from 'fs';
@@ -38,10 +39,28 @@ const consoleFormat = winston.format.combine(
   winston.format.colorize({ all: true }),
   winston.format.printf(({ timestamp, level, message, stack, ...meta }) => {
     let output = `[${timestamp}] ${level}: ${message}`;
+
+    if (meta.guild) output += ` | Guild: ${meta.guild}`;
+    if (meta.channel) output += ` | Channel: ${meta.channel}`;
+    if (meta.user) output += ` | User: ${meta.user}`;
+    if (meta.pattern) output += ` | Pattern: "${meta.pattern}"`;
+    if (meta.confidence) output += ` | Confidence: ${meta.confidence}`;
+    if (meta.duration) output += ` | Duration: ${meta.duration}ms`;
+
     if (stack) output += `\n${stack}`;
-    if (Object.keys(meta).length > 0) {
-      output += ` ${JSON.stringify(meta)}`;
+
+    const remainingMeta = { ...meta };
+    delete remainingMeta.guild;
+    delete remainingMeta.channel;
+    delete remainingMeta.user;
+    delete remainingMeta.pattern;
+    delete remainingMeta.confidence;
+    delete remainingMeta.duration;
+
+    if (Object.keys(remainingMeta).length > 0) {
+      output += ` | Meta: ${JSON.stringify(remainingMeta)}`;
     }
+
     return output;
   })
 );
@@ -53,17 +72,22 @@ const fileFormat = winston.format.combine(
   winston.format.json()
 );
 
-const logger = winston.createLogger({
+const logger = createConsola({
+  level: process.env.LOG_LEVEL === 'debug' ? 4 : 3,
+  formatOptions: {
+    date: true,
+    colors: true,
+    compact: false,
+  },
+});
+
+const fileLogger = winston.createLogger({
   levels: logLevels.levels,
   format: fileFormat,
   defaultMeta: { service: 'discord-bot' },
   exitOnError: false,
   level: process.env.LOG_LEVEL || 'info',
   transports: [
-    new winston.transports.Console({
-      format: consoleFormat,
-      level: process.env.CONSOLE_LOG_LEVEL || 'pattern',
-    }),
     new DailyRotateFile({
       filename: path.join(logDir, 'error-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
@@ -149,10 +173,111 @@ activityTransport.on('error', (err) => {
   console.error('Activity transport error:', err);
 });
 
-logger.add(patternTransport);
-logger.add(activityTransport);
+fileLogger.add(patternTransport);
+fileLogger.add(activityTransport);
 
-logger.on('error', (err) => {
+const hybridLogger = {
+  info: (message, meta = {}) => {
+    if (message.includes('Pattern matched and response sent')) {
+      fileLogger.info(message, meta);
+      return;
+    }
+
+    if (message.includes('Bot shutdown initiated')) {
+      fileLogger.info(message, meta);
+      return;
+    }
+
+    if (typeof message === 'string' && meta && Object.keys(meta).length > 0) {
+      if (message.includes('Bot successfully logged in')) {
+        logger.success(`🤖 ${meta.botTag} online | 🏠 ${meta.guildCount} servers | 👥 ${meta.userCount} users | 🎯 ${meta.patternsLoaded} patterns`);
+      } else {
+        logger.info(message);
+      }
+    } else {
+      logger.info(message);
+    }
+    fileLogger.info(message, meta);
+  },
+
+  error: (message, meta = {}) => {
+    if (typeof message === 'string' && meta && Object.keys(meta).length > 0) {
+      if (meta.error && meta.user) {
+        logger.error(`❌ ${message} | 👤 ${meta.user} | Error: ${meta.error}`);
+      } else {
+        logger.error(`❌ ${message}`);
+      }
+    } else {
+      logger.error(`❌ ${message}`);
+    }
+    fileLogger.error(message, meta);
+  },
+
+  warn: (message, meta = {}) => {
+    logger.warn(`⚠️ ${message}`);
+    fileLogger.warn(message, meta);
+  },
+
+  debug: (message, meta = {}) => {
+    if (process.env.DEBUG === 'true') {
+      if (meta && meta.user && meta.duration !== undefined) {
+        logger.debug(`🔍 ${message} | 👤 ${meta.user} | ⏱️ ${meta.duration}ms`);
+      } else {
+        logger.debug(`🔍 ${message}`);
+      }
+    }
+    fileLogger.debug(message, meta);
+  },
+
+  log: (level, message, meta = {}) => {
+    hybridLogger[level] ? hybridLogger[level](message, meta) : hybridLogger.info(message, meta);
+  },
+};
+
+class PerformanceLogger {
+  static logBotStartup(startTime) {
+    const bootTime = Date.now() - startTime;
+    fileLogger.info('Bot startup completed', {
+      bootTime: `${bootTime}ms`,
+      nodeVersion: process.version,
+      platform: process.platform,
+      memoryUsage: process.memoryUsage(),
+    });
+    logger.success(`🚀 Ready in ${bootTime}ms`);
+  }
+
+  static logMemoryUsage() {
+    const usage = process.memoryUsage();
+    fileLogger.info('Memory usage report', {
+      rss: `${Math.round(usage.rss / 1024 / 1024)}MB`,
+      heapUsed: `${Math.round(usage.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(usage.heapTotal / 1024 / 1024)}MB`,
+      external: `${Math.round(usage.external / 1024 / 1024)}MB`,
+    });
+    logger.info(`💾 Memory: ${Math.round(usage.heapUsed / 1024 / 1024)}MB used / ${Math.round(usage.heapTotal / 1024 / 1024)}MB total`);
+  }
+
+  static startPerformanceTimer(label) {
+    const startTime = Date.now();
+    return {
+      end: (metadata = {}) => {
+        const duration = Date.now() - startTime;
+        fileLogger.debug(`Performance: ${label}`, {
+          duration: `${duration}ms`,
+          ...metadata,
+        });
+        logger.debug(`⏱️ ${label}: ${duration}ms`);
+        return duration;
+      },
+    };
+  }
+}
+
+setInterval(() => {
+  PerformanceLogger.logMemoryUsage();
+}, 30 * 60 * 1000);
+
+fileLogger.on('error', (err) => {
   console.error('Logger error:', err);
 });
 
@@ -186,11 +311,11 @@ class PatternStats {
     }
   }
 
-  trackPatternMatch(message, pattern, confidence) {
+  trackPatternMatch(message, pattern, confidence, processingTime = null, response = '') {
     const userId = message.author.id;
     const username = message.author.username;
     const channelId = message.channel.id;
-    const channelName = message.channel.name;
+    const channelName = message.channel.name || 'Unknown';
     const content = message.content;
     const guildId = message.guild ? message.guild.id : 'DM';
     const guildName = message.guild ? message.guild.name : 'Direct Message';
@@ -202,11 +327,15 @@ class PatternStats {
         lastMatched: new Date().toISOString(),
         channels: {},
         users: {},
+        avgConfidence: 0,
+        totalConfidence: 0,
       };
     }
 
     this.patternStats[pattern].count++;
     this.patternStats[pattern].lastMatched = new Date().toISOString();
+    this.patternStats[pattern].totalConfidence += confidence;
+    this.patternStats[pattern].avgConfidence = this.patternStats[pattern].totalConfidence / this.patternStats[pattern].count;
 
     if (!this.patternStats[pattern].channels[channelId]) {
       this.patternStats[pattern].channels[channelId] = {
@@ -225,10 +354,32 @@ class PatternStats {
     this.patternStats[pattern].users[userId].count++;
 
     if (this.patternStats[pattern].examples.length < 5) {
-      this.patternStats[pattern].examples.push(content);
+      this.patternStats[pattern].examples.push({
+        content,
+        timestamp: new Date().toISOString(),
+        confidence: confidence.toFixed(3),
+      });
     }
 
-    logger.log('pattern', `Pattern matched: "${pattern}" | User: ${username} | Channel: ${channelName} | Guild: ${guildName} | Confidence: ${confidence.toFixed(2)} | Message: "${content}"`);
+    fileLogger.log('pattern', 'Pattern matched successfully', {
+      pattern,
+      user: `${username} (${userId})`,
+      channel: `${channelName} (${channelId})`,
+      guild: `${guildName} (${guildId})`,
+      confidence: confidence.toFixed(3),
+      message: content.substring(0, 100) + (content.length > 100 ? '...' : ''),
+      messageLength: content.length,
+      processingTime: processingTime ? `${processingTime}ms` : 'N/A',
+      totalMatches: this.patternStats[pattern].count,
+      avgConfidence: this.patternStats[pattern].avgConfidence.toFixed(3),
+    });
+
+    const cleanMessage = content.replace(/[\r\n]+/g, ' ').substring(0, 35);
+    const messagePreview = cleanMessage.length < content.length ? cleanMessage + '...' : cleanMessage;
+    const responsePreview = response.substring(0, 25) + (response.length > 25 ? '...' : '');
+    const channelShort = channelName.length > 12 ? channelName.substring(0, 12) + '...' : channelName;
+
+    logger.success(`🎯 "${messagePreview}" → "${responsePreview}" | 👤 ${username} in #${channelShort} | 📊 ${confidence.toFixed(2)} | ⏱️ ${processingTime || 0}ms`);
 
     this.saveStats();
   }
@@ -322,5 +473,5 @@ class PatternStats {
 
 const patternStats = new PatternStats();
 
-export { logger, patternStats };
-export default { logger, patternStats };
+export { hybridLogger as logger, patternStats, PerformanceLogger };
+export default { logger: hybridLogger, patternStats, PerformanceLogger };
