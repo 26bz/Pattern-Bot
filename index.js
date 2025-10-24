@@ -90,7 +90,7 @@ function loadQuestions(dir) {
 const botStartTime = Date.now()
 loadQuestions(path.join(__dirname, 'questions'))
 
-client.once('clientReady', () => {
+client.once('ready', () => {
   logger.info('Bot successfully logged in', {
     botTag: client.user.tag,
     botId: client.user.id,
